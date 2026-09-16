@@ -1917,18 +1917,26 @@ class PureWaveInterference(nn.Module):
         emit_theta = emit_freqs * positions.view(1, 1, T, 1) + emit_phases  # (B, H, T, W)
         recv_theta = recv_freqs * positions.view(1, 1, T, 1) + recv_phases  # (B, H, T, W)
         
-        # === STEP 5: WAVE INTERFERENCE (per head) ===
+        # === STEP 5: WAVE INTERFERENCE (per head) - OPTIMIZED REAL-ONLY ===
+        # Avoid complex tensor overhead by using trigonometric identity:
+        # Re(A*e^(iθ₁) @ B*e^(-iθ₂)) = A*B*cos(θ₁-θ₂) = A*B*(cos(θ₁)cos(θ₂) + sin(θ₁)sin(θ₂))
+        # This is equivalent to: (A*cos(θ₁)) @ (B*cos(θ₂))ᵀ + (A*sin(θ₁)) @ (B*sin(θ₂))ᵀ
+        
         emit_amp_total = emit_amps.sum(dim=-1)  # (B, H, T, W)
         recv_amp_total = recv_amps.sum(dim=-1)
         
-        emit_phasor = emit_amp_total * torch.exp(1j * emit_theta.to(torch.complex64))
-        recv_phasor = recv_amp_total * torch.exp(1j * recv_theta.to(torch.complex64))
+        # Real-only phasor components (no complex tensors!)
+        emit_cos = emit_amp_total * torch.cos(emit_theta)  # (B, H, T, W)
+        emit_sin = emit_amp_total * torch.sin(emit_theta)  # (B, H, T, W)
+        recv_cos = recv_amp_total * torch.cos(recv_theta)  # (B, H, T, W)
+        recv_sin = recv_amp_total * torch.sin(recv_theta)  # (B, H, T, W)
         
-        # Interference per head: (B, H, T, T)
-        interference = torch.matmul(
-            emit_phasor,
-            recv_phasor.conj().transpose(-2, -1)
-        ).real / (W ** 0.5)
+        # Interference = Re(emit @ recv*) using real arithmetic only
+        # This avoids complex64 tensor creation and conjugate operations
+        interference = (
+            torch.matmul(emit_cos, recv_cos.transpose(-2, -1)) +
+            torch.matmul(emit_sin, recv_sin.transpose(-2, -1))
+        ) / (W ** 0.5)  # (B, H, T, T)
         
         # === STEP 6: FULL INTENSITY with per-head strength ===
         emit_energy = (emit_amp_total ** 2).sum(dim=-1, keepdim=True)  # (B, H, T, 1)

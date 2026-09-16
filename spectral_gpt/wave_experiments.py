@@ -632,16 +632,17 @@ MODEL_CONFIGS = {
     # === SCALED MODEL: ~120M Parameters ===
     # Designed for final long training run to test DC modes at scale
     # Target: 120M params with full Trinity + DC modes
+    # CORRECTED: Increased num_waves to reach 120M target
     "scaled": ModelConfig(
         name="Scaled (120M PureWave)",
         d_model=768,        # Same as GPT-2 small
         num_layers=12,      # 12 layers for depth
         num_heads=12,       # 12 heads for multi-head diversity
-        num_waves=96,       # More waves for richer spectrum
+        num_waves=144,      # INCREASED: More waves for 120M target
         num_harmonics=4,    # Keep harmonics at 4
         vocab_size=50257,   # GPT-2 vocabulary
         block_size=512,     # Longer context
-        batch_size=8        # Smaller batch for memory (use grad_accum)
+        batch_size=6        # Smaller batch for larger model
     ),
 }
 
@@ -1671,6 +1672,12 @@ def train_experiment(
     start_time = time.perf_counter()
     total_tokens = 0
     
+    # === AUTOMATIC MIXED PRECISION (AMP) for faster training ===
+    use_amp = torch.cuda.is_available() and device.type == 'cuda'
+    scaler = torch.cuda.amp.GradScaler() if use_amp else None
+    if use_amp:
+        console.print("[green]⚡ AMP enabled (mixed precision training)[/green]")
+    
     with Progress(
         SpinnerColumn(),
         TextColumn("[bold blue]{task.description}"),
@@ -1730,34 +1737,36 @@ def train_experiment(
                 x, y = get_batch(train_data, batch_size, model_config.block_size, device)
                 total_tokens += x.numel()
                 
-                # Forward with annealing ratio (Requirements 6.1, 6.2)
-                # Pass standard_embed_ratio only to models that support it
-                base_model = model.module if hasattr(model, 'module') else model
-                
-                if hasattr(base_model, 'wave_excitation'):
-                    # PureWaveGPT - no annealing needed
-                    logits, ce_loss = model(x, y)
-                else:
-                    # WaveGPT - supports annealing
-                    logits, ce_loss = model(x, y, standard_embed_ratio=current_annealing_ratio)
-                
-                # Compute loss
-                if exp_config.use_qfe and loss_fn is not None:
-                    # Handle both WaveCoherenceLoss (new) and QuantumFieldEntanglementLoss (legacy)
-                    if WAVE_PHYSICS_CORE_AVAILABLE and isinstance(loss_fn, WaveCoherenceLoss):
-                        # WaveCoherenceLoss returns dict with 'total', 'ce', 'coherence' keys
-                        loss_dict = loss_fn(logits, y)
-                        loss = loss_dict['total']
-                        coherence_losses.append(loss_dict['coherence'].item())
+                # Forward with AMP (mixed precision) for faster training
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    # Forward with annealing ratio (Requirements 6.1, 6.2)
+                    # Pass standard_embed_ratio only to models that support it
+                    base_model = model.module if hasattr(model, 'module') else model
+                    
+                    if hasattr(base_model, 'wave_excitation'):
+                        # PureWaveGPT - no annealing needed
+                        logits, ce_loss = model(x, y)
                     else:
-                        # Legacy QuantumFieldEntanglementLoss with return_components=True
-                        loss_dict = loss_fn(logits, y, return_components=True)
-                        loss = loss_dict['total']
-                        coherence_losses.append(loss_dict['coherence'].item())
-                else:
-                    loss = ce_loss
-                    if loss.ndim > 0:
-                        loss = loss.mean()
+                        # WaveGPT - supports annealing
+                        logits, ce_loss = model(x, y, standard_embed_ratio=current_annealing_ratio)
+                    
+                    # Compute loss
+                    if exp_config.use_qfe and loss_fn is not None:
+                        # Handle both WaveCoherenceLoss (new) and QuantumFieldEntanglementLoss (legacy)
+                        if WAVE_PHYSICS_CORE_AVAILABLE and isinstance(loss_fn, WaveCoherenceLoss):
+                            # WaveCoherenceLoss returns dict with 'total', 'ce', 'coherence' keys
+                            loss_dict = loss_fn(logits, y)
+                            loss = loss_dict['total']
+                            coherence_losses.append(loss_dict['coherence'].item())
+                        else:
+                            # Legacy QuantumFieldEntanglementLoss with return_components=True
+                            loss_dict = loss_fn(logits, y, return_components=True)
+                            loss = loss_dict['total']
+                            coherence_losses.append(loss_dict['coherence'].item())
+                    else:
+                        loss = ce_loss
+                        if loss.ndim > 0:
+                            loss = loss.mean()
                 
                 # Check for NaN
                 if torch.isnan(loss) or torch.isinf(loss):
@@ -1767,15 +1776,24 @@ def train_experiment(
                 # Scale loss for accumulation
                 loss = loss / exp_config.grad_accum_steps
                 
-                # Backward
-                loss.backward()
+                # Backward with AMP scaler
+                if use_amp and scaler is not None:
+                    scaler.scale(loss).backward()
+                else:
+                    loss.backward()
                 
                 # Track raw loss (unscaled) for logging
                 accum_loss_scalar += loss.item() * exp_config.grad_accum_steps
 
             # Update weights after accumulation
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            
+            # Optimizer step with AMP scaler
+            if use_amp and scaler is not None:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
             
             # Average loss over accumulation steps (approximate)
             avg_loss = accum_loss_scalar / exp_config.grad_accum_steps
