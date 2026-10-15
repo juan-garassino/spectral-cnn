@@ -24,6 +24,7 @@ import os
 import gc
 import shutil
 import math
+import ast
 import json
 from pathlib import Path
 from rich.console import Console
@@ -316,7 +317,7 @@ def main():
         tokenizer = BasicTokenizer()
         with open(tokenizer_path, 'r') as f:
             data = json.load(f)
-            tokenizer.merges = {eval(k): v for k, v in data['merges'].items()}
+            tokenizer.merges = {ast.literal_eval(k): v for k, v in data['merges'].items()}
             tokenizer.vocab = {int(k): bytes(v) for k, v in data['vocab'].items()}
     else:
         console.print("[yellow]🔧 Training new tokenizer...[/yellow]")

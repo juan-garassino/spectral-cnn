@@ -360,7 +360,7 @@ def main():
     # Load or create model
     if args.model and os.path.exists(args.model):
         print(f"📥 Loading model from {args.model}")
-        checkpoint = torch.load(args.model, map_location=device)
+        checkpoint = torch.load(args.model, map_location=device, weights_only=True)
         
         # Reconstruct config
         config_dict = checkpoint.get('config', {})

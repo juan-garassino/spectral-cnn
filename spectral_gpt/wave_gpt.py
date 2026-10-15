@@ -487,24 +487,11 @@ class WavePacketEmbedding(nn.Module):
         rms = embeddings.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-8)
         embeddings = embeddings / rms * self.output_scale
         
-        # === PURE WAVE OUTPUT ===
-        # Instead of projecting to embedding space, return raw wave parameters!
-        # This enables pure wave-to-wave computation throughout the network
-        
-        if standard_embed_ratio > 0.0:
-            # For annealing, we still need embeddings temporarily
-            simple_embed = self.simple_embed(token_ids)
-            r = standard_embed_ratio
-            embeddings = (1.0 - r) * wave_embed + r * simple_embed
-            
-            # Scale output (RMSNorm-style, preserves gradients unlike LayerNorm)
-            rms = embeddings.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-8)
-            embeddings = embeddings / rms * self.output_scale
-            
-            return embeddings
-        else:
-            # Pure wave mode: return wave parameters directly!
-            return base_f, phases, harm_a  # (freqs, phases, amplitudes)
+        # NOTE: an unfinished "pure wave" refactor returned the raw
+        # (freqs, phases, amps) tuple here when standard_embed_ratio == 0, but
+        # every consumer (WaveGPT -> WaveBlock -> LayerNorm) expects the
+        # documented (B, T, d_model) tensor, so the default forward crashed.
+        return embeddings
     
     def get_token_mass(self, token_id):
         """Get the mass for a specific token (Requirement 1.1)."""

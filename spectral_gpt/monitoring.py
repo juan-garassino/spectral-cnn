@@ -229,7 +229,7 @@ class CheckpointManager:
             return None
         
         try:
-            checkpoint = torch.load(self.latest_symlink, map_location='cpu')
+            checkpoint = torch.load(self.latest_symlink, map_location='cpu', weights_only=True)
             return checkpoint
         except Exception as e:
             print(f"Warning: Failed to load checkpoint from {self.latest_symlink}: {e}")
@@ -243,7 +243,7 @@ class CheckpointManager:
             
             for checkpoint_path in checkpoints:
                 try:
-                    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
                     print(f"Loaded checkpoint from {checkpoint_path}")
                     return checkpoint
                 except Exception:
@@ -267,7 +267,7 @@ class CheckpointManager:
             return None
         
         try:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
             return checkpoint
         except Exception as e:
             print(f"Warning: Failed to load checkpoint from {checkpoint_path}: {e}")
