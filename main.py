@@ -111,7 +111,7 @@ ACTIVE_EXPERIMENTS = [
     "spectral_cnn"
 ]
 
-def run_experiment(exp_name, exp_config, device):
+def run_experiment(exp_name: str, exp_config: dict, device: torch.device) -> dict:
     """Run a single experiment configuration."""
     # Get num_waves from config or use default
     n_waves = exp_config.get('num_waves', NUM_WAVES)
@@ -148,7 +148,7 @@ def run_experiment(exp_name, exp_config, device):
     
     return results
 
-def main():
+def main() -> None:
     """Run all active experiments, save dashboards and wave plots, and print comparison tables."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = f"./results/Experiments_{timestamp}/"

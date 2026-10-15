@@ -2,7 +2,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_results(results, modes, base_dir, num_epochs):
+def plot_results(results: dict, modes: list, base_dir: str, num_epochs: int) -> None:
     """Save the comprehensive comparison dashboard as ``comprehensive_dashboard.png``.
 
     Args:
@@ -123,7 +123,7 @@ def plot_results(results, modes, base_dir, num_epochs):
     
     print(f"✅ Dashboard saved: {base_dir}/comprehensive_dashboard.png")
 
-def plot_layer_waves(model, mode_name, base_dir):
+def plot_layer_waves(model, mode_name: str, base_dir: str) -> None:
     """
     Visualizes the internal waves of the first layer if supported.
     """
@@ -193,7 +193,7 @@ def plot_layer_waves(model, mode_name, base_dir):
     plt.close()
 
 
-def plot_wave_decomposition(model, mode_name, base_dir, wave_idx=0):
+def plot_wave_decomposition(model, mode_name: str, base_dir: str, wave_idx: int = 0) -> None:
     """
     Visualizes the Fourier decomposition of a single wave.
     Shows: Fourier Components → Combined Wave → 2D Heatmap

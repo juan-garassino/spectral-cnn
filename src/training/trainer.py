@@ -17,7 +17,7 @@ BATCH_SIZE = 512
 LR_PHASE, LR_AMP, LR_BIAS = 1e-3, 1e-3, 1e-2
 LR_LOW_FREQ, LR_MID_FREQ, LR_HIGH_FREQ = 1e-3, 5e-4, 2e-4  # Different LRs per freq band
 
-def get_optimizer(model, mode, frequency_aware=False):
+def get_optimizer(model: nn.Module, mode: str, frequency_aware: bool = False) -> torch.optim.Adam:
     """
     Create optimizer with optional frequency-aware learning rates.
     
@@ -79,8 +79,9 @@ def get_optimizer(model, mode, frequency_aware=False):
         
         return torch.optim.Adam(param_groups)
 
-def train_fit(mode_name, num_waves, num_epochs, device, num_harmonics=3, 
-             adaptive_freqs=False, per_neuron_coeffs=False, l1_penalty=0.0, wave_mode="outer_product"):
+def train_fit(mode_name: str, num_waves: int, num_epochs: int, device: torch.device, num_harmonics: int = 3,
+              adaptive_freqs: bool = False, per_neuron_coeffs: bool = False, l1_penalty: float = 0.0,
+              wave_mode: str = "outer_product") -> dict:
     
     """Train one model on MNIST and report accuracy and timing.
 

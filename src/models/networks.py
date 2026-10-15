@@ -1,4 +1,5 @@
 """Network definitions: ``UniversalMLP`` (swappable layer type) and ``SpectralCNN``."""
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .layers import UserWaveLinear, PolyLinear, WaveletLinear, FactorLinear, SirenLinear, GatedWaveLinear
@@ -48,7 +49,7 @@ class UniversalMLP(nn.Module):
             self.fc3 = Layer(HIDDEN, 10, num_waves=num_waves)
         self.type = layer_type
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Classify flattened images.
 
         Args:
@@ -120,7 +121,7 @@ class SpectralCNN(nn.Module):
                                 adaptive_freqs=adaptive_freqs, per_neuron_coeffs=per_neuron_coeffs,
                                 wave_mode=wave_mode)
         
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Conv 1
         """Classify images.
 
