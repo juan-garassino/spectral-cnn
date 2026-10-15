@@ -978,11 +978,8 @@ class SpectralConv2d(nn.Module):
             wave_mode=wave_mode
         )
         
-        # Bias is handled by UserWaveLinear but we need it separate for Conv2d usually,
-        # but UserWaveLinear includes a bias term in its forward/get_weight.
-        # However, UserWaveLinear.get_weight() returns just the weight matrix.
-        # UserWaveLinear.bias is a separate parameter.
-        # We can use that bias.
+        # get_weight() returns only the matrix, so forward() reads the bias
+        # from weight_gen.bias directly.
 
     def forward(self, x):
         # 1. Generate weights [out_channels, flat_in_dim]
@@ -1042,8 +1039,7 @@ class SpectralConv3d(nn.Module):
         self.flat_out_dim = out_channels
         
         # Use UserWaveLinear to generate the weights
-        # This proves the "Universal Wave Computing" concept:
-        # The same 1D/2D wave generation logic creates 3D volumetric filters!
+        # The same wave construction is reused; the 3D kernel is the flattened weight reshaped.
         self.weight_gen = UserWaveLinear(
             self.flat_in_dim, self.flat_out_dim, 
             num_waves=num_waves, 

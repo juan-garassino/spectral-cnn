@@ -24,7 +24,13 @@ def get_optimizer(model: nn.Module, mode: str, frequency_aware: bool = False) ->
     Args:
         model: The neural network model
         mode: Model type (Standard, UserWave, etc.)
-        frequency_aware: If True, use different learning rates for different frequency bands
+        frequency_aware: If True, use separate parameter groups for phase
+            parameters, Fourier coefficients (``LR_LOW_FREQ``), amplitudes
+            (``LR_MID_FREQ``) and bias. ``LR_HIGH_FREQ`` is currently unused.
+
+    Returns:
+        Adam optimizer over the model's parameters. ``"Standard"`` uses a single
+        group at ``LR_BIAS``.
     """
     if mode == "Standard": 
         return torch.optim.Adam(model.parameters(), lr=LR_BIAS)
@@ -53,13 +59,9 @@ def get_optimizer(model: nn.Module, mode: str, frequency_aware: bool = False) ->
             if 'bias' in name:
                 bias.append(p)
             elif 'fourier_coeffs' in name:
-                # Split Fourier coefficients by frequency band
-                # We'll need to access the layer to know num_harmonics
-                # For now, we'll add them to separate groups based on the parameter structure
-                # This requires the layer to expose the harmonics separately
-                # For simplicity, we'll just use different LRs for all coeffs for now
-                # TODO: Implement per-harmonic grouping
-                low_freq_coeffs.append(p)  # Placeholder - will improve
+                # All coefficients share one group (LR_LOW_FREQ); per-harmonic
+                # grouping would need the layer to expose harmonics separately.
+                low_freq_coeffs.append(p)
             elif any(k in name for k in ['u', 'v', 'U', 'V', 'net']):
                 phase.append(p)
             elif 'amplitudes' in name:
