@@ -1,6 +1,5 @@
 import os
 import torch
-import numpy as np
 from datetime import datetime
 from src.training.trainer import train_fit
 from src.visualization.plotter import plot_results, plot_layer_waves, plot_wave_decomposition

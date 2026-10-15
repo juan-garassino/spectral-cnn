@@ -90,7 +90,7 @@ def demo_paper_generation():
     
     comparison = generator.generate_layer_comparison(wave_info, standard_info)
     
-    print(f"\n✓ Generated layer comparison")
+    print("\n✓ Generated layer comparison")
     print(f"  Length: {len(comparison):,} characters")
     print("\n  Preview (first 500 chars):")
     print(f"    {comparison[:500]}...")
@@ -117,7 +117,7 @@ def demo_paper_generation():
     
     fitting = generator.generate_fitting_analysis(exp_data)
     
-    print(f"\n✓ Generated fitting analysis")
+    print("\n✓ Generated fitting analysis")
     print(f"  Length: {len(fitting):,} characters")
     print("\n  Preview (first 500 chars):")
     print(f"    {fitting[:500]}...")

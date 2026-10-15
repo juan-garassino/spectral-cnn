@@ -7,8 +7,6 @@ import time
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-import numpy as np
 from src.models.networks import UniversalMLP, SpectralCNN
 
 console = Console()
@@ -47,7 +45,7 @@ def get_optimizer(model, mode, frequency_aware=False):
     else:
         # Frequency-aware approach: separate learning rates per frequency band
         phase, bias = [], []
-        low_freq_coeffs, mid_freq_coeffs, high_freq_coeffs = [], [], []
+        low_freq_coeffs = []
         amplitudes = []
         
         for name, p in model.named_parameters():

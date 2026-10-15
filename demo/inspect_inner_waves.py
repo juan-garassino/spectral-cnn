@@ -1,6 +1,4 @@
 import torch
-import torch.nn as nn
-import matplotlib.pyplot as plt
 import os
 from src.models.layers import UserWaveLinear
 from src.visualization import plotter

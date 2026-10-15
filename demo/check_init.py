@@ -1,4 +1,3 @@
-import torch
 from src.models.layers import UserWaveLinear
 
 # Test the initialization

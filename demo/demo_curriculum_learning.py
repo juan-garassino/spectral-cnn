@@ -125,7 +125,7 @@ def main():
     
     plt.tight_layout()
     plt.savefig('results/curriculum_demo/curriculum_comparison.png', dpi=150)
-    print(f"\n✅ Results saved: results/curriculum_demo/curriculum_comparison.png")
+    print("\n✅ Results saved: results/curriculum_demo/curriculum_comparison.png")
     
     # Summary
     print("\n" + "=" * 60)

@@ -70,7 +70,7 @@ def demo_spectral_gpt_examples():
             print(f"   - Lines: {snippet.end_line - snippet.start_line}")
             print(f"   - Has docstring: {'Yes' if snippet.docstring else 'No'}")
         else:
-            print(f"   ✗ Not found")
+            print("   ✗ Not found")
 
 
 def demo_api_examples():
@@ -111,10 +111,10 @@ def demo_code_appendix():
         output_file="experiments/paper/demo_code_appendix.md"
     )
     
-    print(f"✓ Generated appendix:")
+    print("✓ Generated appendix:")
     print(f"  - Total length: {len(appendix)} characters")
-    print(f"  - Sections: Wave Packet Embedding, Interference Attention, RGD, QFE, API")
-    print(f"  - Saved to: experiments/paper/demo_code_appendix.md")
+    print("  - Sections: Wave Packet Embedding, Interference Attention, RGD, QFE, API")
+    print("  - Saved to: experiments/paper/demo_code_appendix.md")
     
     # Show structure
     print("\n  Appendix structure:")

@@ -2,7 +2,6 @@
 Show exactly which parameters are learnable in both 1D and 2D wave modes.
 """
 
-import torch
 from src.models.layers import UserWaveLinear
 
 def analyze_learnable_parameters():

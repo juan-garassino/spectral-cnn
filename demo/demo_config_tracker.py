@@ -12,7 +12,6 @@ import json
 # Add spectral_gpt to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'spectral_gpt'))
 
-import torch
 import torch.nn as nn
 from monitoring import ConfigTracker
 
@@ -87,15 +86,15 @@ def demo_config_tracker():
         print(f"\n   Experiment ID: {loaded_config['experiment_id']}")
         print(f"   Timestamp: {loaded_config['timestamp']}")
         print(f"   Git Hash: {loaded_config['git_hash']}")
-        print(f"\n   Hardware Info:")
+        print("\n   Hardware Info:")
         for key, value in loaded_config['hardware'].items():
             print(f"     - {key}: {value}")
         
-        print(f"\n   Model Info:")
+        print("\n   Model Info:")
         for key, value in loaded_config['model'].items():
             print(f"     - {key}: {value}")
         
-        print(f"\n   Training Config:")
+        print("\n   Training Config:")
         for key, value in loaded_config['config']['training'].items():
             print(f"     - {key}: {value}")
         
@@ -128,12 +127,12 @@ def demo_config_tracker():
         with open(tracker.results_file, 'r') as f:
             results = json.load(f)
         
-        print(f"\n   Final Metrics:")
+        print("\n   Final Metrics:")
         for key, value in results['final_metrics'].items():
             print(f"     - {key}: {value}")
         
         print(f"\n   Best Checkpoint: {results['best_checkpoint']}")
-        print(f"\n   Generation Samples:")
+        print("\n   Generation Samples:")
         for i, sample in enumerate(results['generation_samples'], 1):
             print(f"     {i}. {sample}")
         
