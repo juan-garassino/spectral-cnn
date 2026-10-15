@@ -26,7 +26,7 @@ Automated maintenance log for this repository (security + correctness). Branch: 
 | G-004 | medium | bug: `WaveBlock` builds `InterferenceAttention(d_model, num_heads, num_waves, dropout)` positionally and calls it with one tensor, but the class now takes `(num_waves, num_harmonics, num_heads, dropout)` and `forward(freqs, phases, amps)`; `use_interference_attention=True` always crashes (11 tests failing). Needs a design decision (adapter vs. finishing the pure-wave refactor) | spectral_gpt/wave_gpt.py | open | 2026-10-15 |
 | G-005 | low | bug: `WavePacketEmbedding` init crashes for small `num_waves` (< ~5) because an empty frequency band reaches `.min()` in a debug print | spectral_gpt/wave_gpt.py | open | 2026-10-15 |
 | G-006 | low | hygiene: test suite overwrites tracked `results/dashboard_test/comprehensive_dashboard.png` | tests/test_dashboard.py | open | 2026-10-15 |
-| G-007 | low | hygiene: `.coverage` was tracked despite being in `.gitignore` -> untracked | .coverage | fixed | 2026-10-15 |
+| G-007 | low | hygiene: `.coverage` was tracked and not ignored -> untracked + added to `.gitignore` | .coverage | fixed | 2026-10-15 |
 | G-008 | low | hygiene: two ~60 MB `.pt` checkpoints committed under `spectral_gpt/benchmark_results/models/` (consider Git LFS / release assets; history not rewritten) | spectral_gpt/benchmark_results/models | open | 2026-10-15 |
 | G-009 | low | supply chain: `load_dataset("HuggingFaceFW/fineweb-edu")` without a pinned `revision` | spectral_gpt/wave_experiments.py | open | 2026-10-15 |
 
