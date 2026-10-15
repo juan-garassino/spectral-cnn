@@ -1,12 +1,12 @@
+"""Visualize the individual waves inside a ``UserWaveLinear`` layer."""
 import torch
-import torch.nn as nn
-import matplotlib.pyplot as plt
 import os
 from src.models.layers import UserWaveLinear
 from src.visualization import plotter
 from torchvision import datasets, transforms
 
 def inspect_waves():
+    """Build a ``UserWaveLinear`` layer and save wave and Fourier-decomposition plots to ``results/inspection/``."""
     print("🌊 Inspecting Inner Waves...")
     
     # 1. Initialize a model with 2D Outer Product waves

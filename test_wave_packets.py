@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from spectral_gpt.wave_gpt import WavePacketEmbedding
 
 def test_wave_packets():
+    """Plot wave-packet examples to ``wave_packet_test.png``."""
     print("🌊 Testing Wave Packet Generation...")
     
     # Create embedding

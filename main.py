@@ -1,6 +1,7 @@
+"""Benchmark runner: trains every mode in ``MODES`` for each active experiment on MNIST,
+writes plots under ``./results/Experiments_<timestamp>/`` and prints a comparison table."""
 import os
 import torch
-import numpy as np
 from datetime import datetime
 from src.training.trainer import train_fit
 from src.visualization.plotter import plot_results, plot_layer_waves, plot_wave_decomposition
@@ -110,7 +111,7 @@ ACTIVE_EXPERIMENTS = [
     "spectral_cnn"
 ]
 
-def run_experiment(exp_name, exp_config, device):
+def run_experiment(exp_name: str, exp_config: dict, device: torch.device) -> dict:
     """Run a single experiment configuration."""
     # Get num_waves from config or use default
     n_waves = exp_config.get('num_waves', NUM_WAVES)
@@ -147,7 +148,8 @@ def run_experiment(exp_name, exp_config, device):
     
     return results
 
-def main():
+def main() -> None:
+    """Run all active experiments, save dashboards and wave plots, and print comparison tables."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = f"./results/Experiments_{timestamp}/"
     os.makedirs(base_dir, exist_ok=True)

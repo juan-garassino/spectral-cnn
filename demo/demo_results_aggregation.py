@@ -17,6 +17,7 @@ import json
 
 
 def main():
+    """Demonstrate results aggregation."""
     print("=" * 80)
     print("Results Aggregation Demo")
     print("=" * 80)

@@ -1,3 +1,4 @@
+"""Training loop and optimizer construction for the MNIST benchmark."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,8 +8,6 @@ import time
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
-import numpy as np
 from src.models.networks import UniversalMLP, SpectralCNN
 
 console = Console()
@@ -18,14 +17,20 @@ BATCH_SIZE = 512
 LR_PHASE, LR_AMP, LR_BIAS = 1e-3, 1e-3, 1e-2
 LR_LOW_FREQ, LR_MID_FREQ, LR_HIGH_FREQ = 1e-3, 5e-4, 2e-4  # Different LRs per freq band
 
-def get_optimizer(model, mode, frequency_aware=False):
+def get_optimizer(model: nn.Module, mode: str, frequency_aware: bool = False) -> torch.optim.Adam:
     """
     Create optimizer with optional frequency-aware learning rates.
     
     Args:
         model: The neural network model
         mode: Model type (Standard, UserWave, etc.)
-        frequency_aware: If True, use different learning rates for different frequency bands
+        frequency_aware: If True, use separate parameter groups for phase
+            parameters, Fourier coefficients (``LR_LOW_FREQ``), amplitudes
+            (``LR_MID_FREQ``) and bias. ``LR_HIGH_FREQ`` is currently unused.
+
+    Returns:
+        Adam optimizer over the model's parameters. ``"Standard"`` uses a single
+        group at ``LR_BIAS``.
     """
     if mode == "Standard": 
         return torch.optim.Adam(model.parameters(), lr=LR_BIAS)
@@ -47,20 +52,16 @@ def get_optimizer(model, mode, frequency_aware=False):
     else:
         # Frequency-aware approach: separate learning rates per frequency band
         phase, bias = [], []
-        low_freq_coeffs, mid_freq_coeffs, high_freq_coeffs = [], [], []
+        low_freq_coeffs = []
         amplitudes = []
         
         for name, p in model.named_parameters():
             if 'bias' in name:
                 bias.append(p)
             elif 'fourier_coeffs' in name:
-                # Split Fourier coefficients by frequency band
-                # We'll need to access the layer to know num_harmonics
-                # For now, we'll add them to separate groups based on the parameter structure
-                # This requires the layer to expose the harmonics separately
-                # For simplicity, we'll just use different LRs for all coeffs for now
-                # TODO: Implement per-harmonic grouping
-                low_freq_coeffs.append(p)  # Placeholder - will improve
+                # All coefficients share one group (LR_LOW_FREQ); per-harmonic
+                # grouping would need the layer to expose harmonics separately.
+                low_freq_coeffs.append(p)
             elif any(k in name for k in ['u', 'v', 'U', 'V', 'net']):
                 phase.append(p)
             elif 'amplitudes' in name:
@@ -80,9 +81,33 @@ def get_optimizer(model, mode, frequency_aware=False):
         
         return torch.optim.Adam(param_groups)
 
-def train_fit(mode_name, num_waves, num_epochs, device, num_harmonics=3, 
-             adaptive_freqs=False, per_neuron_coeffs=False, l1_penalty=0.0, wave_mode="outer_product"):
+def train_fit(mode_name: str, num_waves: int, num_epochs: int, device: torch.device, num_harmonics: int = 3,
+              adaptive_freqs: bool = False, per_neuron_coeffs: bool = False, l1_penalty: float = 0.0,
+              wave_mode: str = "outer_product") -> dict:
     
+    """Train one model on MNIST and report accuracy and timing.
+
+    Downloads MNIST into ``./data`` if absent, trains with Adam
+    (batch size 512, gradient clipping at 1.0, ``ReduceLROnPlateau`` on test accuracy),
+    and times a full pass over the test set for inference speed.
+
+    Args:
+        mode_name: ``"SpectralCNN"`` or a ``UniversalMLP`` layer type.
+        num_waves: Waves per spectral layer.
+        num_epochs: Number of training epochs.
+        device: ``torch.device`` to train on.
+        num_harmonics: Fourier harmonics per wave.
+        adaptive_freqs: Make harmonic frequencies learnable.
+        per_neuron_coeffs: One coefficient set per output neuron.
+        l1_penalty: Weight of the L1 penalty on Fourier coefficients (0 disables).
+        wave_mode: ``"outer_product"``, ``"fourier_series"`` or ``"gabor"``.
+
+    Returns:
+        Dict with ``test_acc`` and ``train_acc`` (percent, last epoch), ``params``
+        (trainable parameter count), ``model``, ``history`` (per-epoch
+        ``train_acc``/``test_acc`` lists), ``total_time`` (seconds) and
+        ``inference_speed`` (test samples per second).
+    """
     console.print(Panel(f"[bold cyan]Training: {mode_name}[/]", expand=False))
     
     # Data Loading

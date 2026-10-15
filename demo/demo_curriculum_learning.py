@@ -58,6 +58,7 @@ def train_with_curriculum(model, train_loader, test_loader, epochs, device, use_
     return history
 
 def main():
+    """Train with and without progressive frequency unfreezing and compare."""
     print("🎓 Frequency Curriculum Learning Demo\n")
     
     device = torch.device("cpu")
@@ -125,7 +126,7 @@ def main():
     
     plt.tight_layout()
     plt.savefig('results/curriculum_demo/curriculum_comparison.png', dpi=150)
-    print(f"\n✅ Results saved: results/curriculum_demo/curriculum_comparison.png")
+    print("\n✅ Results saved: results/curriculum_demo/curriculum_comparison.png")
     
     # Summary
     print("\n" + "=" * 60)

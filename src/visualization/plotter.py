@@ -1,9 +1,16 @@
+"""Matplotlib dashboards and wave plots for trained models."""
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import os
 
-def plot_results(results, modes, base_dir, num_epochs):
+def plot_results(results: dict, modes: list, base_dir: str, num_epochs: int) -> None:
+    """Save the comprehensive comparison dashboard as ``comprehensive_dashboard.png``.
+
+    Args:
+        results: Mapping of mode name to the dict returned by ``train_fit``.
+        modes: Mode names to include, in display order.
+        base_dir: Output directory (must exist).
+        num_epochs: Number of training epochs, used for the learning-curve axis.
+    """
     print("\n[Generating Enhanced Visualization Dashboard...]")
     N = len(modes)
     
@@ -116,7 +123,7 @@ def plot_results(results, modes, base_dir, num_epochs):
     
     print(f"✅ Dashboard saved: {base_dir}/comprehensive_dashboard.png")
 
-def plot_layer_waves(model, mode_name, base_dir):
+def plot_layer_waves(model, mode_name: str, base_dir: str) -> None:
     """
     Visualizes the internal waves of the first layer if supported.
     """
@@ -134,7 +141,7 @@ def plot_layer_waves(model, mode_name, base_dir):
     waves_to_plot = min(num_waves, 8)
     
     # Create a 3-row visualization
-    fig = plt.figure(figsize=(waves_to_plot*2.5, 9))
+    plt.figure(figsize=(waves_to_plot*2.5, 9))
     
     for i in range(waves_to_plot):
         wave_2d = waves[i, 0, :].reshape(side, side)
@@ -158,7 +165,7 @@ def plot_layer_waves(model, mode_name, base_dir):
         plt.plot(wave_2d[idx_mid, :], color='green', alpha=0.6, linewidth=1, label='Mid')
         plt.plot(wave_2d[idx_bot, :], color='blue', alpha=0.6, linewidth=1, label='Bot')
         
-        plt.title(f"3 Slices", fontsize=9)
+        plt.title("3 Slices", fontsize=9)
         plt.grid(True, alpha=0.3)
         max_amp = max(np.abs(waves[:waves_to_plot, 0, :]).max(), 1e-8)
         plt.ylim(-max_amp, max_amp)
@@ -186,7 +193,7 @@ def plot_layer_waves(model, mode_name, base_dir):
     plt.close()
 
 
-def plot_wave_decomposition(model, mode_name, base_dir, wave_idx=0):
+def plot_wave_decomposition(model, mode_name: str, base_dir: str, wave_idx: int = 0) -> None:
     """
     Visualizes the Fourier decomposition of a single wave.
     Shows: Fourier Components → Combined Wave → 2D Heatmap
@@ -212,9 +219,8 @@ def plot_wave_decomposition(model, mode_name, base_dir, wave_idx=0):
     
     # Determine grid layout based on number of harmonics
     ncols = min(num_harmonics, 4)  # Max 4 columns
-    nrows_per_section = int(np.ceil(num_harmonics / ncols))
     
-    fig = plt.figure(figsize=(ncols * 3.5, 10))
+    plt.figure(figsize=(ncols * 3.5, 10))
     
     # Row 1: Individual Fourier Components (1D) - show up to 8
     colors = ['blue', 'green', 'red', 'purple', 'orange', 'brown', 'pink', 'gray']
@@ -278,7 +284,7 @@ def plot_wave_decomposition(model, mode_name, base_dir, wave_idx=0):
     coeff_text = f"Learned Coefficients (Wave {wave_idx}):\n\n"
     for h in range(num_harmonics):
         coeff_text += f"c_{h+1} = {learned_coeffs[h]:.4f} (×{int(harmonic_freqs[h])}ω)\n"
-    coeff_text += f"\nFormula:\nwave = " + " + ".join([f"c_{h+1}·cos({int(harmonic_freqs[h])}θ)" for h in range(num_harmonics)])
+    coeff_text += "\nFormula:\nwave = " + " + ".join([f"c_{h+1}·cos({int(harmonic_freqs[h])}θ)" for h in range(num_harmonics)])
     
     plt.text(0.5, 0.5, coeff_text,
              ha='center', va='center', fontsize=9, family='monospace',
