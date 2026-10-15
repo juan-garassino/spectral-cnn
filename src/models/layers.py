@@ -1,3 +1,10 @@
+"""Wave-parameterized layers.
+
+Contains ``UserWaveLinear`` (superposed waves with Fourier harmonics), baseline
+layers used for comparison (``PolyLinear``, ``WaveletLinear``, ``FactorLinear``,
+``SirenLinear``), ``GatedWaveLinear``, and ``SpectralConv1d/2d/3d`` which
+generate convolution kernels from a ``UserWaveLinear``.
+"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +13,22 @@ import math
 
 # 1. USER WAVE
 class UserWaveLinear(nn.Module):
+    """Linear layer whose weight matrix is a superposition of waves.
+
+    Instead of storing an ``[out_dim, in_dim]`` matrix, the layer stores wave
+    parameters (frequencies, phases or coordinate vectors, Fourier coefficients,
+    amplitudes) and builds the weight matrix from them on each forward pass.
+
+    Parameter shapes depend on ``wave_mode`` (``W`` = num_waves, ``H`` = num_harmonics):
+
+    - ``outer_product``: ``u [W, out, 1]``, ``v [W, in, 1]``, ``freqs [W, 1, 1]``, ``amplitudes [W]``
+    - ``fourier_series``: ``freqs [W]``, ``phases [W]``, ``amplitudes [out, W]``
+    - ``gabor``: as ``fourier_series`` plus ``centers [W]`` and ``sigmas [W]``
+
+    In all modes ``fourier_coeffs`` is ``[W, H]`` (``[W, out, H]`` if
+    ``per_neuron_coeffs``), ``harmonic_freqs`` is ``[H]`` (a parameter if
+    ``adaptive_freqs``, otherwise a buffer) and ``bias`` is ``[out]``.
+    """
     def __init__(self, in_dim, out_dim, num_waves=12, num_harmonics=3, 
                  adaptive_freqs=False, per_neuron_coeffs=False, wave_mode="outer_product",
                  force_linear_coords=False, init_mode="standard"):
@@ -172,6 +195,14 @@ class UserWaveLinear(nn.Module):
                 self.phases.sub_(math.pi)  # Center at 0
 
     def forward(self, x):
+        """Apply the wave-generated linear map.
+
+        Args:
+            x: Input of shape ``[batch, in_dim]``, float32.
+
+        Returns:
+            Tensor of shape ``[batch, out_dim]``.
+        """
         if self.wave_mode == "outer_product":
             return self._forward_outer_product(x)
         elif self.wave_mode == "fourier_series":
@@ -265,6 +296,7 @@ class UserWaveLinear(nn.Module):
         return x @ W.t() + self.bias
 
     def get_weight(self):
+        """Weight matrix of shape ``[out_dim, in_dim]`` (float32), computed without gradient tracking."""
         with torch.no_grad():
             if self.wave_mode == "outer_product":
                 return self._get_weight_outer_product()
@@ -510,7 +542,9 @@ class UserWaveLinear(nn.Module):
         """Returns L1 penalty on Fourier coefficients for sparsity."""
         return torch.abs(self.fourier_coeffs).sum()
 
-    def constrain(self): pass
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
     
     def freeze_high_frequencies(self, threshold=0.5):
         """
@@ -575,6 +609,11 @@ class UserWaveLinear(nn.Module):
 
 # 2. POLY NET
 class PolyLinear(nn.Module):
+    """Linear layer whose weight is a sum of powers of ``tanh(u_i v_i^T)``.
+
+    Weight ``W = sum_i coeffs[i] * tanh(u_i v_i^T) ** (i + 1)`` with ``u [W, out, 1]``,
+    ``v [W, in, 1]``, ``coeffs [W]`` and ``bias [out]`` (``W`` = num_waves).
+    """
     def __init__(self, in_dim, out_dim, num_waves=12):
         super().__init__()
         self.num_waves = num_waves
@@ -584,6 +623,7 @@ class PolyLinear(nn.Module):
         self.coeffs = nn.Parameter(torch.randn(num_waves) * 0.05)
         self.bias = nn.Parameter(torch.zeros(out_dim))
     def forward(self, x):
+        """Map ``x`` of shape ``[batch, in_dim]`` to ``[batch, out_dim]``."""
         theta = torch.bmm(self.u, self.v.transpose(1, 2))
         t = torch.tanh(theta)
         W = torch.zeros(self.u.shape[1], self.v.shape[1], device=x.device)
@@ -591,6 +631,7 @@ class PolyLinear(nn.Module):
             W = W + (self.coeffs[i] * torch.pow(t[i], i+1))
         return x @ W.t() + self.bias
     def get_weight(self):
+        """Weight matrix of shape ``[out_dim, in_dim]`` (float32), computed without gradient tracking."""
         with torch.no_grad():
             theta = torch.bmm(self.u, self.v.transpose(1, 2))
             t = torch.tanh(theta)
@@ -598,10 +639,18 @@ class PolyLinear(nn.Module):
             for i in range(self.num_waves):
                 W = W + (self.coeffs[i] * torch.pow(t[i], i+1))
         return W
-    def constrain(self): pass
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
 
 # 3. WAVELET NET
 class WaveletLinear(nn.Module):
+    """Linear layer whose weight is a sum of Gaussian-windowed cosines.
+
+    Weight ``W = sum_i amplitudes[i] * exp(-t_i**2) * cos(5 * t_i)`` where
+    ``t_i = u_i v_i^T``; parameters are ``u [W, out, 1]``, ``v [W, in, 1]``,
+    ``amplitudes [W]`` and ``bias [out]``.
+    """
     def __init__(self, in_dim, out_dim, num_waves=12):
         super().__init__()
         self.num_waves = num_waves
@@ -611,6 +660,7 @@ class WaveletLinear(nn.Module):
         self.amplitudes = nn.Parameter(torch.randn(num_waves) * 0.05)
         self.bias = nn.Parameter(torch.zeros(out_dim))
     def forward(self, x):
+        """Map ``x`` of shape ``[batch, in_dim]`` to ``[batch, out_dim]``."""
         theta = torch.bmm(self.u, self.v.transpose(1, 2))
         W = torch.zeros(self.u.shape[1], self.v.shape[1], device=x.device)
         for i in range(self.num_waves):
@@ -620,6 +670,7 @@ class WaveletLinear(nn.Module):
             W = W + (self.amplitudes[i] * envelope * oscillation)
         return x @ W.t() + self.bias
     def get_weight(self):
+        """Weight matrix of shape ``[out_dim, in_dim]`` (float32), computed without gradient tracking."""
         with torch.no_grad():
             theta = torch.bmm(self.u, self.v.transpose(1, 2))
             W = torch.zeros_like(theta[0])
@@ -627,10 +678,17 @@ class WaveletLinear(nn.Module):
                 t = theta[i]
                 W = W + (self.amplitudes[i] * torch.exp(-torch.pow(t, 2)) * torch.cos(5.0*t))
         return W
-    def constrain(self): pass
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
 
 # 4. FACTOR NET
 class FactorLinear(nn.Module):
+    """Low-rank baseline: ``W = U @ V.T`` with rank ``max(2, min(in_dim, out_dim) // 2)``.
+
+    Parameters are ``U [out, rank]``, ``V [in, rank]`` and ``bias [out]``.
+    ``num_waves`` is accepted only for interface compatibility.
+    """
     def __init__(self, in_dim, out_dim, num_waves=12):
         super().__init__()
         limit = min(in_dim, out_dim)
@@ -641,19 +699,36 @@ class FactorLinear(nn.Module):
         self.V = nn.Parameter(torch.randn(in_dim, self.rank) * k)
         self.bias = nn.Parameter(torch.zeros(out_dim))
     def forward(self, x):
+        """Map ``x`` of shape ``[batch, in_dim]`` to ``[batch, out_dim]``."""
         W = self.U @ self.V.t()
         return x @ W.t() + self.bias
-    def get_weight(self): return self.U @ self.V.t()
-    def constrain(self): pass
+    def get_weight(self):
+        """Return ``U @ V.T`` with shape ``[out_dim, in_dim]``."""
+        return self.U @ self.V.t()
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
 
 # 5. SIREN NET
 class Sine(nn.Module):
+    """Sine activation ``sin(w0 * x)`` used by :class:`SirenLinear`.
+
+    Args:
+        w0: Frequency scale applied before the sine.
+    """
     def __init__(self, w0=30.0):
         super().__init__()
         self.w0 = w0
     def forward(self, input):
+        """Return ``sin(w0 * input)`` with the same shape as ``input``."""
         return torch.sin(self.w0 * input)
 class SirenLinear(nn.Module):
+    """Linear layer whose weight matrix is predicted by a small SIREN network.
+
+    A 3-layer sine-activated MLP (hidden width 64) maps Fourier-embedded
+    ``(row, col)`` grid coordinates to one weight value per matrix entry.
+    ``num_waves`` is accepted only for interface compatibility.
+    """
     def __init__(self, in_dim, out_dim, num_waves=12):
         super().__init__()
         self.rows = out_dim
@@ -691,15 +766,27 @@ class SirenLinear(nn.Module):
         self.register_buffer('embedded_coords', torch.cat(embeds, dim=-1))
         self.bias = nn.Parameter(torch.zeros(out_dim))
     def forward(self, x):
+        """Map ``x`` of shape ``[batch, in_dim]`` to ``[batch, out_dim]``."""
         W_flat = self.net(self.embedded_coords)
         W = W_flat.view(self.rows, self.cols)
         return x @ W.t() + self.bias
     def get_weight(self):
+        """Weight matrix of shape ``[out_dim, in_dim]`` (float32)."""
         return self.net(self.embedded_coords).view(self.rows, self.cols)
-    def constrain(self): pass
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
 
 # 6. GATED WAVE NET (V14 Optimized)
 class GatedWaveLinear(nn.Module):
+    """Wave-synthesized weight matrix multiplied elementwise by a learned sigmoid gate.
+
+    The signal part matches ``UserWaveLinear`` in ``outer_product`` form
+    (``u``, ``v``, ``freqs``, ``fourier_coeffs``, ``amplitudes [num_waves]``).
+    The gate is ``sigmoid(u_gate @ v_gate.T + gate_bias)`` with rank 2, and
+    ``W = signal * gate``. ``wave_mode`` is stored but only the outer-product
+    construction is implemented.
+    """
     def __init__(self, in_dim, out_dim, num_waves=12, num_harmonics=3, 
                  adaptive_freqs=False, per_neuron_coeffs=False, wave_mode="outer_product",
                  force_linear_coords=False):
@@ -763,6 +850,14 @@ class GatedWaveLinear(nn.Module):
         self.bias = nn.Parameter(torch.zeros(out_dim))
 
     def forward(self, x):
+        """Apply the gated wave-generated linear map.
+
+        Args:
+            x: Input of shape ``[batch, in_dim]``, float32.
+
+        Returns:
+            Tensor of shape ``[batch, out_dim]``.
+        """
         theta = torch.bmm(self.u, self.v.transpose(1, 2)) * self.freqs
         signal = torch.zeros(self.u.shape[1], self.v.shape[1], device=x.device)
         
@@ -781,6 +876,7 @@ class GatedWaveLinear(nn.Module):
         return x @ W.t() + self.bias
 
     def get_weight(self):
+        """Weight matrix of shape ``[out_dim, in_dim]`` (float32), computed without gradient tracking."""
         with torch.no_grad():
             theta = torch.bmm(self.u, self.v.transpose(1, 2)) * self.freqs
             signal = torch.zeros(self.u.shape[1], self.v.shape[1], device=self.u.device)
@@ -798,6 +894,11 @@ class GatedWaveLinear(nn.Module):
         return W
     
     def get_waves(self):
+        """Return each wave's contribution before gating, for plotting.
+
+        Returns:
+            Tensor of shape ``[num_waves, out_dim, in_dim]``.
+        """
         with torch.no_grad():
             theta = torch.bmm(self.u, self.v.transpose(1, 2)) * self.freqs
             waves = []
@@ -837,13 +938,21 @@ class GatedWaveLinear(nn.Module):
             return components
     
     def get_l1_loss(self):
+        """Return the L1 norm (scalar tensor) of ``fourier_coeffs``."""
         return torch.abs(self.fourier_coeffs).sum()
 
-    def constrain(self): pass
+    def constrain(self):
+        """No-op; present so all layer types share the ``constrain`` interface."""
+        pass
 
 
 # 7. SPECTRAL CONV2D
 class SpectralConv2d(nn.Module):
+    """2D convolution whose kernel is generated by a ``UserWaveLinear`` layer.
+
+    The kernel ``[out_channels, in_channels, kH, kW]`` is built from the flattened
+    ``[out_channels, in_channels * kH * kW]`` weight of the internal ``weight_gen``.
+    """
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
                  num_waves=12, num_harmonics=3, adaptive_freqs=False, 
                  per_neuron_coeffs=False, wave_mode="outer_product"):
@@ -877,6 +986,14 @@ class SpectralConv2d(nn.Module):
 
     def forward(self, x):
         # 1. Generate weights [out_channels, flat_in_dim]
+        """Convolve ``x`` with the wave-generated kernel.
+
+        Args:
+            x: Input of shape ``[batch, in_channels, H, W]``, float32.
+
+        Returns:
+            Output of shape ``[batch, out_channels, H', W']`` (per stride/padding).
+        """
         w_flat = self.weight_gen.get_weight()
         
         # 2. Reshape to [out_channels, in_channels, kH, kW]
@@ -889,14 +1006,21 @@ class SpectralConv2d(nn.Module):
         return F.conv2d(x, weight, bias, stride=self.stride, padding=self.padding)
     
     def get_l1_loss(self):
+        """Return the L1 penalty of the underlying ``UserWaveLinear``."""
         return self.weight_gen.get_l1_loss()
     
     def constrain_all(self):
+        """Call ``constrain`` on the underlying layer (currently a no-op)."""
         self.weight_gen.constrain()
 
 
 # 8. SPECTRAL CONV3D (Volumetric)
 class SpectralConv3d(nn.Module):
+    """3D convolution whose kernel is generated by a ``UserWaveLinear`` layer.
+
+    The kernel ``[out_channels, in_channels, kD, kH, kW]`` is built from the
+    flattened weight of the internal ``weight_gen``.
+    """
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
                  num_waves=12, num_harmonics=3, adaptive_freqs=False, 
                  per_neuron_coeffs=False, wave_mode="outer_product"):
@@ -931,6 +1055,14 @@ class SpectralConv3d(nn.Module):
 
     def forward(self, x):
         # 1. Generate weights [out_channels, flat_in_dim]
+        """Convolve ``x`` with the wave-generated kernel.
+
+        Args:
+            x: Input of shape ``[batch, in_channels, D, H, W]``, float32.
+
+        Returns:
+            Output of shape ``[batch, out_channels, D', H', W']``.
+        """
         w_flat = self.weight_gen.get_weight()
         
         # 2. Reshape to [out_channels, in_channels, kD, kH, kW]
@@ -944,14 +1076,22 @@ class SpectralConv3d(nn.Module):
         return F.conv3d(x, weight, bias, stride=self.stride, padding=self.padding)
     
     def get_l1_loss(self):
+        """Return the L1 penalty of the underlying ``UserWaveLinear``."""
         return self.weight_gen.get_l1_loss()
     
     def constrain_all(self):
+        """Call ``constrain`` on the underlying layer (currently a no-op)."""
         self.weight_gen.constrain()
 
 
 # 9. SPECTRAL CONV1D (Time Series / Audio)
 class SpectralConv1d(nn.Module):
+    """1D convolution whose kernel is generated by a ``UserWaveLinear`` layer.
+
+    Defaults to ``wave_mode="fourier_series"``. The kernel
+    ``[out_channels, in_channels, kW]`` is built from the flattened weight of the
+    internal ``weight_gen``.
+    """
     def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, 
                  num_waves=12, num_harmonics=3, adaptive_freqs=False, 
                  per_neuron_coeffs=False, wave_mode="fourier_series"):
@@ -981,6 +1121,14 @@ class SpectralConv1d(nn.Module):
 
     def forward(self, x):
         # 1. Generate weights [out_channels, flat_in_dim]
+        """Convolve ``x`` with the wave-generated kernel.
+
+        Args:
+            x: Input of shape ``[batch, in_channels, L]``, float32.
+
+        Returns:
+            Output of shape ``[batch, out_channels, L']``.
+        """
         w_flat = self.weight_gen.get_weight()
         
         # 2. Reshape to [out_channels, in_channels, kW]
@@ -993,8 +1141,10 @@ class SpectralConv1d(nn.Module):
         return F.conv1d(x, weight, bias, stride=self.stride, padding=self.padding)
     
     def get_l1_loss(self):
+        """Return the L1 penalty of the underlying ``UserWaveLinear``."""
         return self.weight_gen.get_l1_loss()
     
     def constrain_all(self):
+        """Call ``constrain`` on the underlying layer (currently a no-op)."""
         self.weight_gen.constrain()
 

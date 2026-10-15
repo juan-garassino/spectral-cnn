@@ -1,3 +1,4 @@
+"""Training loop and optimizer construction for the MNIST benchmark."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -81,6 +82,29 @@ def get_optimizer(model, mode, frequency_aware=False):
 def train_fit(mode_name, num_waves, num_epochs, device, num_harmonics=3, 
              adaptive_freqs=False, per_neuron_coeffs=False, l1_penalty=0.0, wave_mode="outer_product"):
     
+    """Train one model on MNIST and report accuracy and timing.
+
+    Downloads MNIST into ``./data`` if absent, trains with Adam
+    (batch size 512, gradient clipping at 1.0, ``ReduceLROnPlateau`` on test accuracy),
+    and times a full pass over the test set for inference speed.
+
+    Args:
+        mode_name: ``"SpectralCNN"`` or a ``UniversalMLP`` layer type.
+        num_waves: Waves per spectral layer.
+        num_epochs: Number of training epochs.
+        device: ``torch.device`` to train on.
+        num_harmonics: Fourier harmonics per wave.
+        adaptive_freqs: Make harmonic frequencies learnable.
+        per_neuron_coeffs: One coefficient set per output neuron.
+        l1_penalty: Weight of the L1 penalty on Fourier coefficients (0 disables).
+        wave_mode: ``"outer_product"``, ``"fourier_series"`` or ``"gabor"``.
+
+    Returns:
+        Dict with ``test_acc`` and ``train_acc`` (percent, last epoch), ``params``
+        (trainable parameter count), ``model``, ``history`` (per-epoch
+        ``train_acc``/``test_acc`` lists), ``total_time`` (seconds) and
+        ``inference_speed`` (test samples per second).
+    """
     console.print(Panel(f"[bold cyan]Training: {mode_name}[/]", expand=False))
     
     # Data Loading

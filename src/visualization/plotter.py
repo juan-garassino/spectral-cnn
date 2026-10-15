@@ -1,7 +1,16 @@
+"""Matplotlib dashboards and wave plots for trained models."""
 import matplotlib.pyplot as plt
 import numpy as np
 
 def plot_results(results, modes, base_dir, num_epochs):
+    """Save the comprehensive comparison dashboard as ``comprehensive_dashboard.png``.
+
+    Args:
+        results: Mapping of mode name to the dict returned by ``train_fit``.
+        modes: Mode names to include, in display order.
+        base_dir: Output directory (must exist).
+        num_epochs: Number of training epochs, used for the learning-curve axis.
+    """
     print("\n[Generating Enhanced Visualization Dashboard...]")
     N = len(modes)
     

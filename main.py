@@ -1,3 +1,5 @@
+"""Benchmark runner: trains every mode in ``MODES`` for each active experiment on MNIST,
+writes plots under ``./results/Experiments_<timestamp>/`` and prints a comparison table."""
 import os
 import torch
 from datetime import datetime
@@ -147,6 +149,7 @@ def run_experiment(exp_name, exp_config, device):
     return results
 
 def main():
+    """Run all active experiments, save dashboards and wave plots, and print comparison tables."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_dir = f"./results/Experiments_{timestamp}/"
     os.makedirs(base_dir, exist_ok=True)

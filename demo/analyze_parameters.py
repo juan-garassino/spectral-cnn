@@ -5,6 +5,7 @@ Show exactly which parameters are learnable in both 1D and 2D wave modes.
 from src.models.layers import UserWaveLinear
 
 def analyze_learnable_parameters():
+    """Print the learnable parameters of a ``UserWaveLinear`` layer in each wave mode."""
     print("🔍 ANALYZING LEARNABLE WAVE PARAMETERS\n")
     print("=" * 80)
     
