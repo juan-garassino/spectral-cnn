@@ -1,247 +1,179 @@
-# Spectral CNN: Holographic General Intelligence 🌊🧠
+# Spectral CNN
 
-**Wave-based neural networks that learn continuous field representations instead of discrete weights.**
+Neural network layers whose weights are built from superposed waves
+(frequency, phase, amplitude and Fourier harmonics) instead of being stored as
+free parameters. The repository contains:
 
-A comprehensive framework exploring how AI might generalize better by working with spectral (wave) representations, inspired by real-world phenomena like interference, superposition, and holography. This project implements spectral layers for 1D, 2D, and 3D data, with advanced features like frequency curriculum learning and progressive unfreezing.
+- `src/`: the layers (`UserWaveLinear`, `GatedWaveLinear`, `SpectralConv1d/2d/3d`,
+  and baselines), two MNIST networks, a training loop and plotting code.
+- `main.py`: a benchmark that trains every layer type on MNIST and writes plots.
+- `demo/`: small scripts for inspecting waves, parameters and curriculum learning.
+- `spectral_gpt/`: a separate wave-based language-model experiment. See
+  [spectral_gpt/README.md](spectral_gpt/README.md).
 
----
+The motivating hypothesis is written up in
+[docs/spectral_manifesto.md](docs/spectral_manifesto.md). It is a research
+idea, not an established result; this repository does not contain a result that
+confirms it.
 
-## 🎯 Core Hypothesis: The Holographic Generalization Principle
+## Setup
 
-> *"AI would generalize better if it worked with waves... interferences and superpositions, holographic projections... more like the real world."*
-
-Current AI uses **discrete atomism** (grids of independent pixels/weights). The real world operates on **continuous spectra** (light waves, sound frequencies, quantum interference). Spectral networks bridge this gap by learning wave-based representations.
-
-**Key Insight**: In a hologram, every part contains the whole. Cutting a photograph loses information; cutting a hologram loses resolution, not content. Spectral networks achieve similar **distributed representations** where information is spread across the frequency spectrum.
-
----
-
-## ⚡ Quick Start
+Python >= 3.12 (see `pyproject.toml`).
 
 ```bash
-# Install dependencies
-pip install torch torchvision matplotlib numpy rich
-
-# Run basic benchmark
-python main.py
-
-# Explore inner wave structure
-python demo/inspect_inner_waves.py
-
-# Test curriculum learning
-python demo/demo_curriculum_learning.py
+uv sync                  # torch, torchvision, matplotlib, numpy
+uv pip install rich pytest
 ```
 
----
+`rich` is imported by `main.py` and `src/training/trainer.py` but is not listed
+in `pyproject.toml`, so it is installed separately above. `pytest` is only
+needed to run the tests. MNIST is downloaded into `./data` on first use
+(the raw files are also checked in under `data/MNIST/raw`).
 
-## 🌊 What Makes This Different?
+## Quick start
 
-### Traditional Neural Networks
+Run all commands from the repository root.
+
+```bash
+# Plots of the individual waves inside one layer -> results/inspection/
+PYTHONPATH=. uv run python demo/inspect_inner_waves.py
+
+# Print the learnable parameters of a layer in each wave mode
+PYTHONPATH=. uv run python demo/analyze_parameters.py
+
+# Frequency-curriculum demo (5 epochs per run, two runs)
+PYTHONPATH=. uv run python demo/demo_curriculum_learning.py
+
+# One-epoch dashboard smoke test -> results/dashboard_test/comprehensive_dashboard.png
+uv run pytest tests/test_dashboard.py
+
+# Full benchmark (long on CPU, see below)
+uv run python main.py
 ```
-Weight Matrix = Random initialization → Gradient descent → ???
-```
 
-### Spectral Neural Networks
-```
-Weight Matrix = Σ(Amplitude × Wave) where each wave has:
-  • Frequency (oscillation rate)
-  • Phase (spatial offset)
-  • Amplitude (strength)
-  • Harmonics (octave relationships)
-```
+The `demo/` scripts need `PYTHONPATH=.` because they import `src` from the
+repository root.
 
-**Result**: Interpretable, structured learning with physically meaningful decomposition.
+`main.py` trains 7 layer types for 10 epochs for each entry in
+`ACTIVE_EXPERIMENTS` (7 are active), so a CPU run takes a long time. Edit
+`NUM_EPOCHS` and `ACTIVE_EXPERIMENTS` at the top of `main.py` to shorten it.
+Output goes to `results/Experiments_<timestamp>/<experiment>/`.
 
----
+## Layers
 
-## 📊 Layer Types
+`UserWaveLinear` builds its `[out, in]` weight matrix from `num_waves` waves,
+each a sum of `num_harmonics` cosines with learnable coefficients. Three modes
+are selected with `wave_mode`:
 
-| Layer | Dimensions | Parameters (784→10) | Use Case |
-|-------|-----------|---------------------|----------|
-| **SpectralConv1d** | 1D | ~195 | Time series, audio, sequences |
-| **SpectralConv2d** | 2D | ~9,446 | Images, surfaces |
-| **SpectralConv3d** | 3D | ~50,000 | MRI scans, video, volumetric data |
-| **UserWaveLinear** | Any | Configurable | Fully-connected layers with wave structure |
+| `wave_mode` | Construction |
+|---|---|
+| `outer_product` | `cos(h * freq * u_i v_i^T)` from learned coordinate vectors `u`, `v` |
+| `fourier_series` | 1D sinusoids over the (normalized) input index, one amplitude per output neuron |
+| `gabor` | Gaussian-windowed sinusoids with learnable center and width |
 
-All layers support:
-- **Multiple wave modes**: `outer_product` (2D), `fourier_series` (1D), `gabor` (localized wavelets)
-- **Adaptive frequencies**: Network learns optimal frequency scales
-- **Harmonic stacking**: Multi-resolution decomposition (1×, 2×, 4×, 8× base frequency)
-- **Curriculum learning**: Progressive frequency unfreezing
+Trainable parameter counts for one `UserWaveLinear(784, 10, num_waves=12,
+num_harmonics=5)` with default flags, measured by summing `p.numel()`:
 
----
+| `wave_mode` | Parameters |
+|---|---|
+| `outer_product` | 9,622 |
+| `fourier_series` | 214 |
+| `gabor` | 238 |
 
-## 🎓 Advanced Features
+A dense `nn.Linear(784, 10)` has 7,850. The per-parameter breakdown is in
+[docs/parameters_reference.md](docs/parameters_reference.md); its totals (9,446
+and 195) predate the current code and differ slightly from the counts above.
 
-### 1. Frequency Curriculum Learning
+Other layers in `src/models/layers.py`: `GatedWaveLinear` (wave weights times a
+learned sigmoid gate), `SpectralConv1d/2d/3d` (convolution kernels generated by
+a `UserWaveLinear`), and comparison baselines `PolyLinear`, `WaveletLinear`,
+`FactorLinear`, `SirenLinear`.
 
-Combat spectral bias by starting with low frequencies and progressively adding detail:
+Networks in `src/models/networks.py`: `UniversalMLP` (784 -> 12 -> 12 -> 10,
+selectable layer type) and `SpectralCNN` (two `SpectralConv2d` layers and a
+`UserWaveLinear` classifier).
 
 ```python
 from src.models.networks import UniversalMLP
 
-model = UniversalMLP("UserWave", num_waves=12, num_harmonics=5)
-
-# Start with only low frequencies
-model.fc1.freeze_high_frequencies(threshold=0.2)
-
-# During training: progressively unfreeze
-for epoch in range(num_epochs):
-    model.fc1.progressive_unfreeze_schedule(epoch, num_epochs, strategy='linear')
+model = UniversalMLP("UserWave", num_waves=12, num_harmonics=5,
+                     adaptive_freqs=True, wave_mode="outer_product")
 ```
 
-**Benefits**:
-- Faster convergence
-- Better use of high-frequency components
-- Smoother optimization landscape
+### Frequency curriculum (experimental)
 
-### 2. Frequency-Aware Optimization
+`demo/demo_curriculum_learning.py` calls `freeze_high_frequencies` and
+`progressive_unfreeze_schedule` to start with low harmonics and add higher ones
+during training. As currently implemented, `freeze_high_frequencies` does not
+stop gradients from reaching the coefficients (verified by running a backward
+pass), so the demo does not by itself show a curriculum effect.
 
-Different learning rates for different frequency bands:
+### Optimizer groups
 
-```python
-from src.training.trainer import get_optimizer
+`get_optimizer(model, mode, frequency_aware=True)` in `src/training/trainer.py`
+creates separate Adam parameter groups for phase parameters, Fourier
+coefficients, amplitudes and bias. Despite the name, all Fourier coefficients
+are placed in one group; per-harmonic learning rates are not implemented.
 
-# Low freq = 1e-3, Mid freq = 5e-4, High freq = 2e-4
-optimizer = get_optimizer(model, mode="UserWave", frequency_aware=True)
-```
+## Results
 
-### 3. Multi-Dimensional Wave Processing
+No accuracy table is committed. The repository holds generated figures from two
+benchmark runs, `results/Experiments_20251202_105134/` and
+`results/Experiments_20251202_132904/` (subfolders `baseline`, `adaptive`,
+`per_neuron`, `rich_harmonics`, `sparse`), each with `training_dynamics.png`,
+`weight_patterns.png`, `frequency_analysis.png` and per-wave decompositions.
+For example, the `baseline/training_dynamics.png` in the second run plots
+10-epoch test-accuracy curves for the 7 layer types. Read off the plot
+(approximate, not recorded as text), `Standard` ends near 94%, `UserWave`,
+`Wavelet`, `Siren` and `GatedWave` end between roughly 90% and 92%, and `Poly`
+and `Factor` end lower (roughly 86 to 87%). Earlier README accuracy figures
+were removed because no file in the repository backs them. Re-run `main.py` to regenerate numbers; it prints a table of
+parameters, train/test accuracy, generalization gap and timing per model.
 
-Universal wave computing across all dimensions:
-
-```python
-# 1D: Time series
-conv1d = SpectralConv1d(in_channels=1, out_channels=32, kernel_size=7)
-
-# 2D: Images
-conv2d = SpectralConv2d(in_channels=3, out_channels=64, kernel_size=5)
-
-# 3D: Volumetric data
-conv3d = SpectralConv3d(in_channels=1, out_channels=32, kernel_size=3)
-```
-
----
-
-## 📈 Visualization Dashboard
-
-The framework generates comprehensive analysis dashboards:
+## Tests
 
 ```bash
-python tests/test_dashboard.py
+uv run pytest tests -q
 ```
 
-**Output** (`results/comprehensive_dashboard.png`):
-- **Weight Patterns**: Spatial domain visualization
-- **Frequency Analysis**: 2D FFT showing spectral content
-- **Learning Curves**: Training dynamics
-- **Performance Table**: Accuracy, parameters, inference speed
+Last run in this sweep (CPU, Python 3.13, torch 2.14): 72 passed, 24 failed,
+7 skipped, about 5 minutes. All 24 failures are in
+`tests/test_component_independence.py` and fail with
+`TypeError: layer_norm(): argument 'input' (position 1) must be Tensor, not tuple`.
+Some tests write into `results/`, which overwrites tracked images.
 
----
-
-## 🔬 Learnable Parameters
-
-### What the Network Optimizes
-
-All wave-defining parameters are learned from data:
-
-- ✅ **Phase** (u, v in 2D; explicit phases in 1D)
-- ✅ **Amplitude** (fourier_coeffs + amplitudes)
-- ✅ **Frequency** (freqs + harmonic_freqs if adaptive)
-- ✅ **Position** (centers in Gabor mode)
-- ✅ **Scale** (sigmas in Gabor mode)
-- ✅ **Bias** (output bias terms)
-
-See [docs/parameters_reference.md](docs/parameters_reference.md) for complete breakdown.
-
----
-
-## 📚 Documentation
-
-- **[Spectral Manifesto](docs/spectral_manifesto.md)**: Vision of Holographic General Intelligence
-- **[Theoretical Extensions](docs/theoretical_extensions.md)**: Research directions and hypotheses
-- **[Parameters Reference](docs/parameters_reference.md)**: Complete parameter breakdown for all modes
-- **[Theory](docs/theory.md)**: Mathematical foundations
-
----
-
-## 🗂️ Project Structure
+## Layout
 
 ```
-spectral_cnn/
-├── main.py                          # Main benchmark runner
-├── src/
-│   ├── models/
-│   │   ├── layers.py                # Spectral layers (1D/2D/3D, all wave modes)
-│   │   └── networks.py              # SpectralCNN, UniversalMLP
-│   ├── training/
-│   │   └── trainer.py               # Training loop, frequency-aware optimizer
-│   └── visualization/
-│       └── plotter.py               # Comprehensive dashboards
-├── demo/
-│   ├── inspect_inner_waves.py       # Visualize individual wave channels
-│   ├── demo_curriculum_learning.py  # Progressive frequency unfreezing demo
-│   └── analyze_parameters.py        # Parameter analysis tool
-├── tests/
-│   └── test_dashboard.py            # Dashboard generation test
-└── docs/
-    ├── spectral_manifesto.md        # Vision and philosophy
-    ├── theoretical_extensions.md    # Research ideas
-    ├── parameters_reference.md      # Complete parameter guide
-    └── theory.md                    # Mathematical foundations
+main.py                  benchmark runner
+src/models/              layers.py, networks.py
+src/training/trainer.py  train_fit, get_optimizer
+src/visualization/       plotter.py (dashboards, wave plots)
+demo/                    inspection and demo scripts
+tests/                   pytest suite
+notebooks/               spectral_cnn_demo.ipynb
+docs/                    theory, parameter reference, wave modes, configuration
+spectral_gpt/            wave-based language model experiment
+results/                 generated figures
+.kiro/specs/             planning documents
 ```
 
----
+## Documentation
 
-## 🚀 Key Innovations
+- [Spectral Manifesto](docs/spectral_manifesto.md): motivation
+- [Theory](docs/theory.md): mathematical background
+- [Parameters Reference](docs/parameters_reference.md): parameter breakdown per mode
+- [Wave Modes](docs/wave_modes.md) and [1D vs 2D waves](docs/1d_vs_2d_waves.md)
+- [Configuration Guide](docs/configuration_guide.md)
+- [Learnable Fourier](docs/learnable_fourier.md)
+- [Theoretical Extensions](docs/theoretical_extensions.md): ideas, not implemented
 
-1. **Universal Wave Computing**: Same math works for 1D audio, 2D images, 3D volumes
-2. **Frequency Curriculum**: Start simple (low freq), add complexity (high freq) during training
-3. **Holographic Representation**: Information distributed across spectrum, not localized
-4. **4D Spacetime Prediction**: Treating time as another dimension for forecasting
-5. **Infinite Resolution**: Query network at any coordinate for resolution-independent output
+## Related work
 
----
+Fourier Neural Operators (Li et al.), SIREN (Sitzmann et al.), implicit neural
+representations.
 
-## 🎯 Performance
+## License
 
-On MNIST (baseline):
-- **Standard MLP**: 93% accuracy, 7,850 parameters
-- **Spectral 1D**: 90%+ accuracy, 195 parameters (40× compression!)
-- **Spectral 2D**: 93%+ accuracy, 9,446 parameters (structured learning)
-
-With curriculum learning:
-- **+2-5% accuracy** improvement
-- **Faster convergence** (fewer epochs to target accuracy)
-- **Better high-frequency utilization**
-
----
-
-## 🔮 Future Directions
-
-See [docs/theoretical_extensions.md](docs/theoretical_extensions.md) for:
-- Complex-valued networks (true phase representation)
-- Continuous-domain processing (output functions, not tensors)
-- Fractal architectures (self-similar processing)
-- Quantum-inspired interference learning
-
----
-
-## 🙏 Acknowledgments
-
-Inspired by:
-- Fourier Neural Operators (Li et al.)
-- SIREN (Sitzmann et al.)
-- Implicit Neural Representations
-- Holographic principles in physics
-- Progressive GANs (Karras et al.)
-
----
-
-## 📄 License
-
-MIT License - See LICENSE file for details
-
----
-
-**"We are not just training networks; we are composing symphonies of intelligence."** 🎼🌊
+The previous README stated MIT, but no LICENSE file is present in the
+repository. Add one to make the terms explicit.
