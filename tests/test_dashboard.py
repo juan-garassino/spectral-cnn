@@ -3,12 +3,12 @@ from src.models.networks import UniversalMLP
 from src.training.trainer import train_fit
 import os
 
-def test_dashboard():
+def test_dashboard(tmp_path):
     """Quick test to generate the new dashboard"""
     print("🎨 Testing new dashboard visualization...")
     
     device = torch.device("cpu")
-    os.makedirs("results/dashboard_test", exist_ok=True)
+    out_dir = str(tmp_path)  # never overwrite tracked results/ files
     
     # Train two quick models (1 epoch each)
     print("\n1. Training Standard MLP (1 epoch)...")
@@ -27,10 +27,11 @@ def test_dashboard():
     # Generate dashboard
     from src.visualization import plotter
     plotter.plot_results(results, ["Standard", "UserWave"], 
-                        "results/dashboard_test", num_epochs=1)
+                        out_dir, num_epochs=1)
+    assert os.path.exists(os.path.join(out_dir, "comprehensive_dashboard.png"))
     
     print("\n✅ Dashboard test complete!")
-    print("Check: results/dashboard_test/comprehensive_dashboard.png")
 
 if __name__ == "__main__":
-    test_dashboard()
+    import tempfile
+    test_dashboard(tempfile.mkdtemp())

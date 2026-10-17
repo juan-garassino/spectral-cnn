@@ -229,7 +229,7 @@ class CheckpointManager:
             return None
         
         try:
-            checkpoint = torch.load(self.latest_symlink, map_location='cpu')
+            checkpoint = torch.load(self.latest_symlink, map_location='cpu', weights_only=True)
             return checkpoint
         except Exception as e:
             print(f"Warning: Failed to load checkpoint from {self.latest_symlink}: {e}")
@@ -243,7 +243,7 @@ class CheckpointManager:
             
             for checkpoint_path in checkpoints:
                 try:
-                    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+                    checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
                     print(f"Loaded checkpoint from {checkpoint_path}")
                     return checkpoint
                 except Exception:
@@ -267,7 +267,7 @@ class CheckpointManager:
             return None
         
         try:
-            checkpoint = torch.load(checkpoint_path, map_location='cpu')
+            checkpoint = torch.load(checkpoint_path, map_location='cpu', weights_only=True)
             return checkpoint
         except Exception as e:
             print(f"Warning: Failed to load checkpoint from {checkpoint_path}: {e}")
@@ -958,14 +958,7 @@ class VisualizationManager:
                 if freqs.shape[1] > 0:
                     main_freq = freqs[tok_id, 0]
                     ax.set_title(f'Token {tok_id} (f={main_freq:.2f}Hz)')
-                
-                ax.plot(t, wave_sum, linewidth=2, color='cyan')
-                ax.set_title(f'Token {tok_id}')
-                ax.set_xlabel('Time')
-                ax.set_ylabel('Amplitude')
-                ax.grid(True, alpha=0.3)
-                ax.axhline(0, color='white', alpha=0.3, linewidth=0.5)
-            
+
             # Hide unused subplots
             for idx in range(len(sample_tokens), len(axes)):
                 axes[idx].set_visible(False)
@@ -993,8 +986,10 @@ class VisualizationManager:
             if hasattr(model, 'module'):
                 model = model.module
             
-            # Handle both WaveGPT (layers) and PureWaveGPT (wave_layers)
-            if hasattr(model, 'layers'):
+            # Handle WaveGPT (blocks), legacy models (layers) and PureWaveGPT (wave_layers)
+            if hasattr(model, 'blocks'):
+                layers = model.blocks
+            elif hasattr(model, 'layers'):
                 layers = model.layers
             elif hasattr(model, 'wave_layers'):
                 layers = model.wave_layers
@@ -1576,8 +1571,10 @@ class VisualizationManager:
             if hasattr(model, 'module'):
                 model = model.module
             
-            # Handle both WaveGPT (layers) and PureWaveGPT (wave_layers)
-            if hasattr(model, 'layers'):
+            # Handle WaveGPT (blocks), legacy models (layers) and PureWaveGPT (wave_layers)
+            if hasattr(model, 'blocks'):
+                layers = model.blocks
+            elif hasattr(model, 'layers'):
                 layers = model.layers
             elif hasattr(model, 'wave_layers'):
                 layers = model.wave_layers

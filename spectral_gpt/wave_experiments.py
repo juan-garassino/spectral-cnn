@@ -716,6 +716,21 @@ def create_mock_dataset(vocab_size: int = 50257, num_tokens: int = 10000) -> tor
     return torch.randint(0, vocab_size, (num_tokens,), dtype=torch.long)
 
 
+def load_shakespeare(console):
+    """Load Tiny Shakespeare as raw text (downloaded once into spectral_gpt/data/)."""
+    data_path = os.path.join(current_dir, "data", "tiny_shakespeare.txt")
+    if not os.path.exists(data_path):
+        import urllib.request
+        os.makedirs(os.path.dirname(data_path), exist_ok=True)
+        console.print("📥 Downloading Shakespeare...")
+        urllib.request.urlretrieve(  # nosec B310 - fixed https URL
+            "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt",
+            data_path
+        )
+    with open(data_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
+
 def get_dataset(dataset_name: str, console, max_tokens: int = 500_000_000, dry_run: bool = False):
     """Get dataset by name"""
     if dry_run:

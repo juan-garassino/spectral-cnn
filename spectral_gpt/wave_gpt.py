@@ -365,10 +365,12 @@ class WavePacketEmbedding(nn.Module):
         self.harmonic_amps = nn.Parameter(init_harmonic_amplitudes)  # NOW LEARNABLE!
         
         # Debug: Print frequency distribution
+        def _band(t):  # bands can be empty for small num_waves
+            return f"{t.min():.3f} - {t.max():.3f}" if t.numel() else "n/a"
         print(f"🌊 Frequency spectrum initialized:")
-        print(f"   Low freq (sea): {low_freqs.min():.3f} - {low_freqs.max():.3f} Hz ({n_low} waves)")
-        print(f"   Mid freq: {mid_freqs.min():.3f} - {mid_freqs.max():.3f} Hz ({n_mid} waves)")  
-        print(f"   High freq (spikes): {high_freqs.min():.3f} - {high_freqs.max():.3f} Hz ({n_high} waves)")
+        print(f"   Low freq (sea): {_band(low_freqs)} Hz ({n_low} waves)")
+        print(f"   Mid freq: {_band(mid_freqs)} Hz ({n_mid} waves)")
+        print(f"   High freq (spikes): {_band(high_freqs)} Hz ({n_high} waves)")
         print(f"   Total range: {base_spectrum.min():.3f} - {base_spectrum.max():.3f} Hz")
         
         # === Phases: Random initialization with structure ===
@@ -487,24 +489,11 @@ class WavePacketEmbedding(nn.Module):
         rms = embeddings.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-8)
         embeddings = embeddings / rms * self.output_scale
         
-        # === PURE WAVE OUTPUT ===
-        # Instead of projecting to embedding space, return raw wave parameters!
-        # This enables pure wave-to-wave computation throughout the network
-        
-        if standard_embed_ratio > 0.0:
-            # For annealing, we still need embeddings temporarily
-            simple_embed = self.simple_embed(token_ids)
-            r = standard_embed_ratio
-            embeddings = (1.0 - r) * wave_embed + r * simple_embed
-            
-            # Scale output (RMSNorm-style, preserves gradients unlike LayerNorm)
-            rms = embeddings.pow(2).mean(dim=-1, keepdim=True).sqrt().clamp(min=1e-8)
-            embeddings = embeddings / rms * self.output_scale
-            
-            return embeddings
-        else:
-            # Pure wave mode: return wave parameters directly!
-            return base_f, phases, harm_a  # (freqs, phases, amplitudes)
+        # NOTE: an unfinished "pure wave" refactor returned the raw
+        # (freqs, phases, amps) tuple here when standard_embed_ratio == 0, but
+        # every consumer (WaveGPT -> WaveBlock -> LayerNorm) expects the
+        # documented (B, T, d_model) tensor, so the default forward crashed.
+        return embeddings
     
     def get_token_mass(self, token_id):
         """Get the mass for a specific token (Requirement 1.1)."""
@@ -710,11 +699,11 @@ class InterferenceAttention(nn.Module):
         
         # Phase at each position: θ(t) = ω*t + φ_0
         # Different frequencies create different phase evolution rates!
-        theta = freq * positions.view(1, 1, T, 1) + phase  # (B, H, T, W)
+        theta = attn_freqs * positions.view(1, 1, T, 1) + attn_phases  # (B, H, T, W)
         
         # Create complex phasors: A * e^(iθ)
         # This encodes both amplitude and phase in one complex number
-        phasor = amp * torch.exp(1j * theta.to(torch.complex64))  # (B, H, T, W)
+        phasor = attn_amps * torch.exp(1j * theta.to(torch.complex64))  # (B, H, T, W)
         
         # === INTERFERENCE PATTERN ===
         # When query phasor meets key phasor, they interfere:
@@ -736,7 +725,7 @@ class InterferenceAttention(nn.Module):
         interference_term = torch.matmul(phasor, phasor.conj().transpose(-2, -1)).real  # (B, H, T, T)
         
         # Compute amplitude squared terms for full intensity
-        amp_sq = (amp ** 2).sum(dim=-1)  # (B, H, T) - sum over waves
+        amp_sq = (attn_amps ** 2).sum(dim=-1)  # (B, H, T) - sum over waves
         amp_q_sq = amp_sq.unsqueeze(-1)  # (B, H, T, 1)
         amp_k_sq = amp_sq.unsqueeze(-2)  # (B, H, 1, T)
         
@@ -746,7 +735,7 @@ class InterferenceAttention(nn.Module):
         # === PHYSICS-BASED NORMALIZATION ===
         # Normalize by maximum potential energy: (A_Q + A_K)²
         # This gives transmission coefficient in [0, 1] based on resonance
-        amp_sum = amp.sum(dim=-1)  # (B, H, T) - total amplitude per position
+        amp_sum = attn_amps.sum(dim=-1)  # (B, H, T) - total amplitude per position
         amp_q = amp_sum.unsqueeze(-1)  # (B, H, T, 1)
         amp_k = amp_sum.unsqueeze(-2)  # (B, H, 1, T)
         max_energy = (amp_q + amp_k) ** 2 + self.eps  # (B, H, T, T)
@@ -770,10 +759,10 @@ class InterferenceAttention(nn.Module):
         
         # Store for visualization
         self.last_attention_weights = attn_weights.detach()
-        self.last_interference = interference.detach()
-        self.last_frequencies = freq.detach()
-        self.last_phases = phase.detach()
-        self.last_amplitudes = amp.detach()
+        self.last_interference = interference_term.detach()
+        self.last_frequencies = attn_freqs.detach()
+        self.last_phases = attn_phases.detach()
+        self.last_amplitudes = attn_amps.detach()
         
         # === WAVE SUPERPOSITION (Instead of matrix multiply with values) ===
         # Apply attention weights to wave parameters directly!
@@ -1752,11 +1741,6 @@ class PhaseInterferometerGate(nn.Module):
         out_freqs = input_state.freqs + gate * delta_state.freqs
         out_phases = input_state.phases + gate * delta_state.phases
         out_amps = input_state.amps + gate.unsqueeze(-1) * delta_state.amps
-        
-        return WaveState(out_freqs, out_phases, out_amps)
-        out_freqs = res_state.freqs + mlp_state.freqs
-        out_phases = res_state.phases + mlp_state.phases
-        out_amps = res_state.amps + mlp_state.amps
         
         return WaveState(out_freqs, out_phases, out_amps)
 
