@@ -35,6 +35,7 @@ Automated maintenance log for this repository (security + correctness). Branch: 
 | G-012 | medium | bug: `get_dataset("shakespeare")` (`--dataset shakespeare`, and the default of `run_experiments(dataset=...)`) called `load_shakespeare`, which a refactor had deleted -> `NameError`; restored | spectral_gpt/wave_experiments.py | fixed | 2026-10-17 |
 | G-013 | low | bug: `EXPERIMENTS` dict literal defines the key `"pure_wave"` twice; the first config ("PureWaveAttn (ELU+1)", `model_type="wave"`) is silently shadowed and unreachable. Needs the owner to pick a new key name | spectral_gpt/wave_experiments.py | open | 2026-10-17 |
 | G-014 | low | bug: `demo_full_monitoring_system` printed `tracker.*` (undefined; variable is `config_tracker`) -> `NameError` at the end of the demo; also removed unreachable dead code with undefined names after a `return` in `PhaseInterferometerGate.forward` | spectral_gpt/demo_monitoring.py, spectral_gpt/wave_gpt.py | fixed | 2026-10-17 |
+| G-015 | low | bug: `VisualizationManager._plot_attention_patterns` / `_plot_interference_strength` looked for `model.layers`/`wave_layers`, but `WaveGPT` keeps its blocks in `model.blocks`, so both plots were always skipped for `WaveGPT` | spectral_gpt/monitoring.py | fixed | 2026-10-17 |
 
 Reviewed and judged acceptable (no ledger entry): `urllib.request.urlretrieve` of fixed https URLs (bandit B310), `subprocess.run` with list args for `git`/`pandoc` (B603/B607), `try/except/pass` (B110/B112). Secrets scans: no findings.
 
@@ -48,7 +49,7 @@ Reviewed and judged acceptable (no ledger entry): `urllib.request.urlretrieve` o
 | secrets (gitleaks, full history 57 commits + tree) | 0 | 0 |
 | failing tests (run 1) | 24 | 11 |
 | failing tests (run 2) | 11 | 11 (all G-004) |
-| passing tests (run 2) | 88 (7 skipped) | 93 (7 skipped; 5 new) |
+| passing tests (run 2) | 88 (7 skipped) | 94 (7 skipped; 6 new) |
 | ruff F821 undefined names (run 2) | 19 | 0 |
 | ruff `--isolated` total (run 2) | 733 | 713 |
 | coverage | not measured | not measured |
@@ -81,4 +82,4 @@ Reviewed and judged acceptable (no ledger entry): `urllib.request.urlretrieve` o
 ## Log
 
 - 2026-10-15 run 1: baseline scans (pip-audit 0 CVEs, gitleaks clean, bandit triaged); fixed G-001 (embedding tuple crash, 13 tests green), G-002 (`eval` -> `ast.literal_eval`), G-003 (`torch.load(weights_only=True)`), untracked `.coverage`; added `tests/test_guardian_regressions.py`; left G-004 (interference attention API mismatch) open for the owner.
-- 2026-10-17 run 2: rescans clean (pip-audit 0 CVEs, gitleaks history+tree 0, no workflows/Dockerfiles, bandit unchanged); ruff F821 sweep found 5 latent crashes -> fixed G-010 (InterferenceAttention NameError), G-011 (wave-packet plot never written), G-012 (missing `load_shakespeare`), G-014 (demo NameError + dead code), plus G-005 (small `num_waves`) and G-006 (test writes into `tmp_path`); added `testpaths`; opened G-013 (duplicate `"pure_wave"` key). G-004 still open for the owner. No review comments on the PR to address.
+- 2026-10-17 run 2: rescans clean (pip-audit 0 CVEs, gitleaks history+tree 0, no workflows/Dockerfiles, bandit unchanged); ruff F821 sweep found 5 latent crashes -> fixed G-010 (InterferenceAttention NameError), G-011 (wave-packet plot never written), G-012 (missing `load_shakespeare`), G-014 (demo NameError + dead code), plus G-005 (small `num_waves`), G-015 (WaveGPT attention plots always skipped) and G-006 (test writes into `tmp_path`); added `testpaths`; opened G-013 (duplicate `"pure_wave"` key). G-004 still open for the owner. No review comments on the PR to address.

@@ -986,8 +986,10 @@ class VisualizationManager:
             if hasattr(model, 'module'):
                 model = model.module
             
-            # Handle both WaveGPT (layers) and PureWaveGPT (wave_layers)
-            if hasattr(model, 'layers'):
+            # Handle WaveGPT (blocks), legacy models (layers) and PureWaveGPT (wave_layers)
+            if hasattr(model, 'blocks'):
+                layers = model.blocks
+            elif hasattr(model, 'layers'):
                 layers = model.layers
             elif hasattr(model, 'wave_layers'):
                 layers = model.wave_layers
@@ -1569,8 +1571,10 @@ class VisualizationManager:
             if hasattr(model, 'module'):
                 model = model.module
             
-            # Handle both WaveGPT (layers) and PureWaveGPT (wave_layers)
-            if hasattr(model, 'layers'):
+            # Handle WaveGPT (blocks), legacy models (layers) and PureWaveGPT (wave_layers)
+            if hasattr(model, 'blocks'):
+                layers = model.blocks
+            elif hasattr(model, 'layers'):
                 layers = model.layers
             elif hasattr(model, 'wave_layers'):
                 layers = model.wave_layers

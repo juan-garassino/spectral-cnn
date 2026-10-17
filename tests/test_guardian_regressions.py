@@ -115,3 +115,17 @@ def test_wave_packet_embedding_small_num_waves():
     for w in (1, 2, 3, 4):
         emb = WavePacketEmbedding(vocab_size=20, d_model=16, num_waves=w, num_harmonics=2)
         assert emb(torch.randint(0, 20, (1, 3))).shape == (1, 3, 16)
+
+
+def test_attention_patterns_plot_finds_wavegpt_blocks(tmp_path):
+    """G-015: VisualizationManager looked for `layers`/`wave_layers`, but WaveGPT
+    stores its transformer blocks in `blocks`, so the plot was always skipped."""
+    from monitoring import VisualizationManager
+    config = WaveGPTConfig(vocab_size=50, d_model=32, num_layers=1, num_heads=4,
+                           num_waves=8, num_harmonics=2, block_size=16,
+                           dropout=0.0, use_wave_embeddings=True, model_type="wave")
+    model = WaveGPT(config)
+    model(torch.randint(0, 50, (2, 8)))
+    viz = VisualizationManager(viz_dir=str(tmp_path), viz_interval=1000)
+    viz._plot_attention_patterns(0, model)
+    assert list(tmp_path.glob("attention_patterns*.png"))
