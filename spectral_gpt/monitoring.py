@@ -958,14 +958,7 @@ class VisualizationManager:
                 if freqs.shape[1] > 0:
                     main_freq = freqs[tok_id, 0]
                     ax.set_title(f'Token {tok_id} (f={main_freq:.2f}Hz)')
-                
-                ax.plot(t, wave_sum, linewidth=2, color='cyan')
-                ax.set_title(f'Token {tok_id}')
-                ax.set_xlabel('Time')
-                ax.set_ylabel('Amplitude')
-                ax.grid(True, alpha=0.3)
-                ax.axhline(0, color='white', alpha=0.3, linewidth=0.5)
-            
+
             # Hide unused subplots
             for idx in range(len(sample_tokens), len(axes)):
                 axes[idx].set_visible(False)

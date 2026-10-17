@@ -788,8 +788,8 @@ def demo_full_monitoring_system():
     
     # Files created
     print(f"\n7. Files created:")
-    print(f"   ✓ {tracker.config_file.name}")
-    print(f"   ✓ {tracker.results_file.name}")
+    print(f"   ✓ {config_tracker.config_file.name}")
+    print(f"   ✓ {config_tracker.results_file.name}")
     print(f"   ✓ {metrics_logger.metrics_file.name}")
     print(f"   ✓ {metrics_logger.training_log.name}")
     print(f"   ✓ {len(checkpoints)} checkpoint files")
